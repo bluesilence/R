@@ -1,6 +1,8 @@
-install.packages("data.table")
+install.packages('data.table')
 install.packages('stringi')
-install.packages("ggplot2", repos="http://cran.rstudio.com/", dependencies = T)
+install.packages('ggplot2', dependencies = T)
+install.packages('plotly')
 
 library(data.table)
 library(ggplot2)
+library(plotly)
