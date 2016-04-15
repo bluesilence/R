@@ -45,12 +45,12 @@ model_list_big <- caretList(
   Class~., data=training,
   trControl=my_control,
   metric="ROC",
-  methodList=c("glm", "rpart"),
-  tuneList=list(
-    rf1=caretModelSpec(method="rf", tuneGrid=data.frame(.mtry=2)),
-    rf2=caretModelSpec(method="rf", tuneGrid=data.frame(.mtry=10), preProcess="pca"),
-    nn=caretModelSpec(method="nnet", tuneLength=2, trace=FALSE)
-  )
+  methodList=c("glm", "rpart", "rf", "nnet")#,
+#   tuneList=list(
+#     rf1=caretModelSpec(method="rf", tuneGrid=data.frame(.mtry=2)),
+#     rf2=caretModelSpec(method="rf", tuneGrid=data.frame(.mtry=10), preProcess="pca"),
+#     nn=caretModelSpec(method="nnet", tuneLength=2, trace=FALSE)
+#   )
 )
 
 model_list_big
@@ -77,6 +77,59 @@ greedy_ensemble_big <- caretEnsemble(
     number=2,
     summaryFunction=twoClassSummary,
     classProbs=TRUE
-  ))
+  )
+)
 
 summary(greedy_ensemble_big)
+varImp(greedy_ensemble_big)
+
+library("caTools")
+## Predict with a list of models
+model_preds <- lapply(model_list_big, predict, newdata=testing, type="prob")
+model_preds <- lapply(model_preds, function(x) x[,"M"])
+model_preds <- data.frame(model_preds)
+
+## Predict with the ensemble of the models in the list above
+ens_preds <- predict(greedy_ensemble_big, newdata=testing, type="prob")
+model_preds$ensemble <- ens_preds
+caTools::colAUC(model_preds, testing$Class)
+
+
+### Caret Stack
+glm_stacking <- caretStack(
+  model_list_big,
+  method="glm",
+  metric="ROC",
+  trControl=trainControl(
+    method="boot",
+    number=10,
+    savePredictions="final",
+    classProbs=TRUE,
+    summaryFunction=twoClassSummary
+  )
+)
+model_preds2 <- model_preds
+model_preds2$stacking <- predict(glm_stacking, newdata=testing, type="prob")
+colAUC(model_preds2, testing$Class)
+CF <- coef(glm_stacking$ens_model$finalModel)[-1]
+CF/sum(CF)
+
+
+library("gbm")
+gbm_ensemble <- caretStack(
+  model_list_big,
+  method="gbm",
+  verbose=FALSE,
+  tuneLength=10,
+  metric="ROC",
+  trControl=trainControl(
+    method="boot",
+    number=10,
+    savePredictions="final",
+    classProbs=TRUE,
+    summaryFunction=twoClassSummary
+  )
+)
+model_preds3 <- model_preds
+model_preds3$stacking <- predict(gbm_ensemble, newdata=testing, type="prob")
+colAUC(model_preds3, testing$Class)
